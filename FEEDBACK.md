@@ -1,6 +1,6 @@
 # Feedback on the Last Stand Legacy Collection port
 
-Hi! Nice port, the idea and the structure are good. I tested it and found why muOS, Rocknix (RP5) and dArkOS testers cannot get past the main screen. The fixed zip is attached to the latest release of this repository. It is built on your zip of 14 October, keeps your new features (the menu arrow patch, the `.orig` copy, gptokeyb2 with `laststand.ini`) and adds the fixes below.
+Hi! Nice port, the idea and the structure are good. I tested it and found why muOS, Rocknix (RP5) and dArkOS testers cannot get past the main screen. The fixed zip is on the [latest release](https://github.com/crxssrazr93/laststand-test/releases/latest) of this repository. It is built on your zip of 14 October, keeps your new features (the menu arrow patch, the `.orig` copy, gptokeyb2 with `laststand.ini`) and adds the fixes below.
 
 ## What I tested
 
@@ -19,7 +19,7 @@ Two more issues made it worse:
 
 ## Fixes
 
-1. **Visible pointer in every game.** Build ruffle_sdl with the optional software cursor patch (0100, in ruffle-patch/). The patched aarch64 binary (glibc 2.30 max, same libraries) is in the zip. The collection menu has its own arrow (your xdelta patch), but the three games are separate SWFs whose menus are mouse driven too, so only the native arrow covers everything. The launcher turns it on with `RUFFLE_SW_CURSOR=1` (`LS_NATIVE_CURSOR`, default on).
+1. **Visible pointer in every game.** Build ruffle_sdl with the optional software cursor patch (0100, in [`ruffle-patch/`](ruffle-patch)). The patched aarch64 binary (glibc 2.30 max, same libraries) is in the zip. The collection menu has its own arrow (your xdelta patch), but the three games are separate SWFs whose menus are mouse driven too, so only the native arrow covers everything. The launcher turns it on with `RUFFLE_SW_CURSOR=1` (`LS_NATIVE_CURSOR`, default on).
 2. **No two pointers.** While the native arrow is on, the launcher leaves out your xdelta menu arrow (`LS_SOFT_CURSOR` only matters when `LS_NATIVE_CURSOR="off"`). Checked on the device in both modes: one arrow each.
 3. **Pointer starts in the middle of the screen**, not at the top left corner. The patch warps SDL's pointer to the window centre at start, so the first stick movement continues from there.
 4. **Pointer speed follows the screen width.** In `mouse_scale` terms nothing changes the speed (on Knulli neither gptokeyb nor gptokeyb2 reacts to it, I measured 200 to 1000 with the same result). The speed comes from `deadzone_scale`. At full stick, 6 (your ini) gives about 255 px/s and 9 gives about 410 px/s on the 640 px screen. The launcher writes run copies (`laststand.run.ini`, `laststand.run.gptk`) with `deadzone_scale` set to 9 (gptokeyb2) or 15 (gptokeyb) at 640 px wide, so 640 pixels take about 1.5 s, scaled linearly with `DISPLAY_WIDTH` and `LS_MOUSE_SPEED` (percent, default 100).
@@ -34,11 +34,11 @@ Two more issues made it worse:
 Tested with the zip installed from scratch (fresh Steam file, no `.orig`), started through EmulationStation, input injected on the real controller.
 
 * Menu: loads, patched file is the expected one (`.orig` kept, MD5 of the patched copy matches the PC result), the arrow starts in the centre.
-* Pointer placement is deterministic: the test build can warp the pointer (`RUFFLE_SW_CURSOR_WARP_FILE`) and log every position (`RUFFLE_SW_CURSOR_LOG`). tests/ls2.sh warps onto a menu entry, takes a device screenshot to confirm the highlight, then clicks with R1 on the pad.
+* Pointer placement is deterministic: the test build can warp the pointer (`RUFFLE_SW_CURSOR_WARP_FILE`) and log every position (`RUFFLE_SW_CURSOR_LOG`). [`tests/ls2.sh`](tests/ls2.sh) warps onto a menu entry, takes a device screenshot to confirm the highlight, then clicks with R1 on the pad.
 * The Last Stand: starts from the menu, peak 299 MB.
 * The Last Stand 2: starts from the menu, intro, skip, diary and the first night run. Moving, aiming with the stick and shooting with R1 change the scene. Peak 382 MB (VmHWM), 460 MB used on the whole system.
 * Union City: starts from the menu, peak 414 MB. On 1 GB devices zram is still needed (your notes say so).
-* Select + Start exits cleanly.
+* Select + Start exited cleanly in the first round of tests (before the cursor and speed changes). Not re-tested with this build.
 * No frame rate measurements were done.
 
 ## PC results
@@ -47,7 +47,9 @@ x86_64 build on a private Xvfb (no window): the pointer starts at 320,240 on a 6
 
 ## Still needs testing
 
-muOS (gptokeyb2 with the mouse mappings: please check the arrow and the speed), Rocknix RP5 (pointer speed on 1080p and whether `RUFFLE_EMPTY_TEXTURES=0` is needed there, it is harmless), dArkOS R36S (this build uses SDL on the firmware's own libs), and The Last Stand 2 on every GPU. Please ask testers to send `ports/laststand/log.txt`.
+Not yet checked on the RG35XX H: Select + Start exit in every game with this build, frame rate, audio and saves per game, every button in the controls table, pointer speed with classic gptokeyb, and a second launch with a replaced Steam file or an unknown game version. GOG copies were not tried.
+
+Other firmwares: muOS (gptokeyb2 with the mouse mappings: please check the arrow and the speed), Rocknix RP5 (pointer speed on 1080p and whether `RUFFLE_EMPTY_TEXTURES=0` is needed there, it is harmless), dArkOS R36S (this build uses SDL on the firmware's own libs), and The Last Stand 2 on every GPU. Please ask testers to send `ports/laststand/log.txt`.
 
 ## Suggestions for the PortMaster PR
 
