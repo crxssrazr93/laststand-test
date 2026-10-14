@@ -38,7 +38,7 @@ Tested with the zip installed from scratch (fresh Steam file, no `.orig`), start
 * The Last Stand: starts from the menu, peak 299 MB.
 * The Last Stand 2: starts from the menu, intro, skip, diary and the first night run. Moving, aiming with the stick and shooting with R1 change the scene. Peak 382 MB (VmHWM), 460 MB used on the whole system.
 * Union City: starts from the menu, peak 414 MB. On 1 GB devices zram is still needed (your notes say so).
-* Select + Start exited cleanly in the first round of tests (before the cursor and speed changes). Not re-tested with this build.
+* Select + Start exits cleanly with this build (confirmed on the RG35XX H).
 * No frame rate measurements were done.
 
 ## PC results
@@ -47,7 +47,7 @@ x86_64 build on a private Xvfb (no window): the pointer starts at 320,240 on a 6
 
 ## Still needs testing
 
-Not yet checked on the RG35XX H: Select + Start exit in every game with this build, frame rate, audio and saves per game, every button in the controls table, pointer speed with classic gptokeyb, and a second launch with a replaced Steam file or an unknown game version. GOG copies were not tried.
+Not yet checked on the RG35XX H: frame rate, audio and saves per game, every button in the controls table, pointer speed with classic gptokeyb, and a second launch with a replaced Steam file or an unknown game version. GOG copies were not tried.
 
 Other firmwares: muOS (gptokeyb2 with the mouse mappings: please check the arrow and the speed), Rocknix RP5 (pointer speed on 1080p and whether `RUFFLE_EMPTY_TEXTURES=0` is needed there, it is harmless), dArkOS R36S (this build uses SDL on the firmware's own libs), and The Last Stand 2 on every GPU. Please ask testers to send `ports/laststand/log.txt`.
 

@@ -76,7 +76,7 @@ Tested on an Anbernic RG35XX H with Knulli, installed from the release zip with 
 | The Last Stand 2 | Intro, diary and first night played | 382 MB |
 | Union City | Starts and plays | 414 MB |
 
-Not checked yet: Select + Start exit in every game, frame rate, audio and saves per game, every button in the table, pointer speed with classic gptokeyb, a stretch to fill option for 4:3 screens, and muOS, ROCKNIX and dArkOS. Reports from other devices are welcome: please include `ports/laststand/log.txt`.
+Select + Start exits cleanly. Not checked yet: frame rate, audio and saves per game, every button in the table, pointer speed with classic gptokeyb, a stretch to fill option for 4:3 screens, and muOS, ROCKNIX and dArkOS. Reports from other devices are welcome: please include `ports/laststand/log.txt`.
 
 ## Repository contents
 
