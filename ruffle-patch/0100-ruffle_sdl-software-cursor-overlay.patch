@@ -1,4 +1,4 @@
-From 1f2550fccc975d4da3fbd240eaa9b2b91485b3b1 Mon Sep 17 00:00:00 2001
+From 3b0629ceff149b1c36c718a6cb76742bdee1711f Mon Sep 17 00:00:00 2001
 From: crxssrazr93 <crxssrazr93@gmail.com>
 Date: Sat, 10 Oct 2026 21:49:06 +0530
 Subject: [PATCH] ruffle_sdl: software mouse cursor overlay and SDL colour
@@ -14,7 +14,13 @@ Shown after SDL MouseMotion, hidden after RUFFLE_SW_CURSOR_IDLE_MS (default 2000
 without motion, zero work while hidden. Every GL state item touched is saved and
 restored, since wgpu owns the context. RUFFLE_SW_CURSOR_SIZE (default 24 px) sets
 the height, RUFFLE_SW_CURSOR_IMAGE loads a PNG instead of the built in arrow.
-The frame is redrawn when only the cursor changed.
+The frame is redrawn when only the cursor changed. The pointer starts in the
+window centre (warped there, so SDL's relative motion starts from the centre too;
+RUFFLE_SW_CURSOR_START=corner keeps 0,0).
+
+Test aids: RUFFLE_SW_CURSOR_LOG=1 prints every pointer position,
+RUFFLE_SW_CURSOR_WARP_FILE=path warps the pointer to the "x y" found in that
+file (then removes it), for deterministic pointer placement in tests.
 
 SDL colour cursor (RUFFLE_SDL_CURSOR=1): SDL_CreateColorCursor from the same
 bitmap and shows the SDL cursor. Only works where the video driver draws cursors
@@ -22,9 +28,9 @@ bitmap and shows the SDL cursor. Only works where the video driver draws cursors
 ---
  Cargo.lock        |   1 +
  sdl/Cargo.toml    |   1 +
- sdl/src/cursor.rs | 600 ++++++++++++++++++++++++++++++++++++++++++++++
- sdl/src/main.rs   |  22 +-
- 4 files changed, 623 insertions(+), 1 deletion(-)
+ sdl/src/cursor.rs | 638 ++++++++++++++++++++++++++++++++++++++++++++++
+ sdl/src/main.rs   |  40 ++-
+ 4 files changed, 679 insertions(+), 1 deletion(-)
  create mode 100644 sdl/src/cursor.rs
 
 diff --git a/Cargo.lock b/Cargo.lock
@@ -53,10 +59,10 @@ index 7d7f8982..8612e439 100644
  tracing-subscriber = { workspace = true }
 diff --git a/sdl/src/cursor.rs b/sdl/src/cursor.rs
 new file mode 100644
-index 00000000..05fdafbb
+index 00000000..9fccc9f7
 --- /dev/null
 +++ b/sdl/src/cursor.rs
-@@ -0,0 +1,600 @@
+@@ -0,0 +1,638 @@
 +//! Software mouse cursor for ruffle_sdl (optional patch).
 +//!
 +//! ruffle_sdl hides the OS cursor, so a pointer driven by a gamepad (gptokeyb's right stick mouse,
@@ -72,7 +78,10 @@ index 00000000..05fdafbb
 +//!
 +//! Environment: RUFFLE_SW_CURSOR (0/1, default 0, or the --sw-cursor flag), RUFFLE_SW_CURSOR_IDLE_MS
 +//! (default 2000), RUFFLE_SW_CURSOR_SIZE (pixels, default 24), RUFFLE_SW_CURSOR_IMAGE (PNG path),
-+//! RUFFLE_SDL_CURSOR (0/1, default 0).
++//! RUFFLE_SDL_CURSOR (0/1, default 0). The pointer starts in the window centre (the start position
++//! is warped there; RUFFLE_SW_CURSOR_START=corner keeps SDL's own 0,0). Test aids:
++//! RUFFLE_SW_CURSOR_LOG=1 prints every pointer position, RUFFLE_SW_CURSOR_WARP_FILE=path warps the
++//! pointer to the "x y" (window pixels) found in that file, then removes the file.
 +//!
 +//! The GL context belongs to wgpu, so every piece of state touched here is saved and restored.
 +
@@ -324,6 +333,11 @@ index 00000000..05fdafbb
 +    /// something changed since the last draw (moved, appeared, disappeared)
 +    dirty: Cell<bool>,
 +    objects: RefCell<GlState>,
++    /// RUFFLE_SW_CURSOR_LOG: print every pointer position (test aid)
++    log: bool,
++    /// RUFFLE_SW_CURSOR_WARP_FILE: a file holding "x y"; when it appears the pointer is warped
++    /// there and the file is removed (test aid for deterministic pointer placement)
++    warp_file: Option<std::path::PathBuf>,
 +}
 +
 +impl SwCursor {
@@ -350,15 +364,45 @@ index 00000000..05fdafbb
 +            visible: Cell::new(false),
 +            dirty: Cell::new(false),
 +            objects: RefCell::new(GlState::Untried),
++            log: env_flag("RUFFLE_SW_CURSOR_LOG"),
++            warp_file: std::env::var_os("RUFFLE_SW_CURSOR_WARP_FILE")
++                .filter(|p| !p.is_empty())
++                .map(Into::into),
 +        }))
 +    }
 +
 +    /// A MouseMotion event, in window pixels.
 +    pub fn moved(&self, x: i32, y: i32) {
++        if self.log {
++            eprintln!("swcursor {x} {y}");
++        }
 +        self.pos.set((x, y));
 +        self.last_motion.set(Some(Instant::now()));
 +        self.visible.set(true);
 +        self.dirty.set(true);
++    }
++
++    /// Remember where the pointer is without showing the arrow (used for the start position).
++    pub fn place(&self, x: i32, y: i32) {
++        self.pos.set((x, y));
++    }
++
++    /// A pending warp request from RUFFLE_SW_CURSOR_WARP_FILE.
++    pub fn take_warp(&self) -> Option<(i32, i32)> {
++        let path = self.warp_file.as_ref()?;
++        let text = std::fs::read_to_string(path).ok()?;
++        let mut it = text.split_whitespace().map(|t| t.parse::<i32>());
++        let xy = match (it.next(), it.next()) {
++            (Some(Ok(x)), Some(Ok(y))) => Some((x, y)),
++            _ => None,
++        };
++        let _ = std::fs::remove_file(path);
++        xy
++    }
++
++    /// The main loop has to wake up regularly to look for a warp request.
++    pub fn polls_warp(&self) -> bool {
++        self.warp_file.is_some()
 +    }
 +
 +    fn expire(&self) {
@@ -658,7 +702,7 @@ index 00000000..05fdafbb
 +    }
 +}
 diff --git a/sdl/src/main.rs b/sdl/src/main.rs
-index bbaf75c2..a206b943 100644
+index 09539e00..0b0ace4a 100644
 --- a/sdl/src/main.rs
 +++ b/sdl/src/main.rs
 @@ -6,6 +6,7 @@
@@ -708,15 +752,25 @@ index bbaf75c2..a206b943 100644
      let (width, height) = window.drawable_size();
      let screen = Rc::new(Cell::new((width, height)));
  
-@@ -382,6 +394,7 @@ fn main() -> anyhow::Result<()> {
+@@ -382,6 +394,17 @@ fn main() -> anyhow::Result<()> {
      let (device, queue) = futures::executor::block_on(request_device(&adapter))?;
      let descriptors = Arc::new(Descriptors::new(instance, adapter, device, queue));
  
 +    let sw_cursor = cursor::SwCursor::from_env(gl.clone(), opt.sw_cursor);
++    if let Some(cursor) = &sw_cursor {
++        // start the pointer in the window centre, not in the corner (RUFFLE_SW_CURSOR_START=corner
++        // keeps the old behaviour); the warp also sets the position SDL adds relative motion to
++        if std::env::var("RUFFLE_SW_CURSOR_START").as_deref() != Ok("corner") {
++            let (ww, wh) = window.size();
++            let (cx, cy) = ((ww / 2) as i32, (wh / 2) as i32);
++            cursor.place(cx, cy);
++            sdl.mouse().warp_mouse_in_window(&window, cx, cy);
++        }
++    }
      let (rw, rh) = opt.render_size.unwrap_or((width, height));
      let target = SdlTarget {
          gl,
-@@ -390,6 +403,7 @@ fn main() -> anyhow::Result<()> {
+@@ -390,6 +413,7 @@ fn main() -> anyhow::Result<()> {
          height: rh,
          screen: screen.clone(),
          read_fbo: Cell::new(None),
@@ -724,17 +778,25 @@ index bbaf75c2..a206b943 100644
      };
      let renderer =
          WgpuRenderBackend::new(descriptors, target).map_err(|e| anyhow!(e.to_string()))?;
-@@ -512,6 +526,9 @@ fn main() -> anyhow::Result<()> {
+@@ -512,6 +536,17 @@ fn main() -> anyhow::Result<()> {
              });
          }
          let mut wait = next_frame.saturating_duration_since(Instant::now());
 +        if let Some(due) = sw_cursor.as_ref().and_then(|c| c.deadline()) {
 +            wait = wait.min(due);
 +        }
++        if let Some(cursor) = &sw_cursor {
++            if cursor.polls_warp() {
++                wait = wait.min(Duration::from_millis(50));
++                if let Some((x, y)) = cursor.take_warp() {
++                    sdl.mouse().warp_mouse_in_window(&window, x, y);
++                }
++            }
++        }
          if let Some((due, _, _)) = held_ups.iter().min_by_key(|(due, _, _)| *due) {
              wait = wait.min(due.saturating_duration_since(Instant::now()));
          }
-@@ -572,6 +589,9 @@ fn main() -> anyhow::Result<()> {
+@@ -572,6 +607,9 @@ fn main() -> anyhow::Result<()> {
                      continue;
                  }
                  Event::MouseMotion { x, y, .. } => {
@@ -744,7 +806,7 @@ index bbaf75c2..a206b943 100644
                      let (x, y) = to_movie(x, y);
                      PlayerEvent::MouseMove { x, y }
                  }
-@@ -645,7 +665,7 @@ fn main() -> anyhow::Result<()> {
+@@ -645,7 +683,7 @@ fn main() -> anyhow::Result<()> {
              }
              next_frame = now + player.time_til_next_frame();
              timing.0 += t1 - t0;

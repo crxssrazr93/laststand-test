@@ -14,6 +14,6 @@ The fixed port zip is attached to the latest release.
 
 ## Main finding
 
-The collection menu and the game menus are mouse only, and `ruffle_sdl` hides the system cursor. On devices without a touch screen the pointer moves but cannot be seen, so testers could not get past the main screen. The cursor patch draws the pointer in `ruffle_sdl` itself, which works on every firmware and in every game of the collection.
+The collection menu and the game menus are mouse only, and `ruffle_sdl` hides the system cursor. On devices without a touch screen the pointer moves but cannot be seen, so testers could not get past the main screen. The cursor patch draws the pointer in `ruffle_sdl` itself, which works on every firmware and in every game of the collection. The Last Stand 2 also drew a black screen on the Mali GPU; the launcher sets `RUFFLE_EMPTY_TEXTURES=0` to fix it.
 
 Tested on an Anbernic RG35XX H with Knulli. See `FEEDBACK.md` for details.
